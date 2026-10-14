@@ -9,3 +9,7 @@ push onto main branch:
 update latest changes: 
 
 >> git pull origin main 
+
+Install this: 
+>> pip install import-ipynb
+
