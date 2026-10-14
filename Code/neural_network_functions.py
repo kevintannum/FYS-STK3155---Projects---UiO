@@ -181,8 +181,6 @@ def train_sgd_plain(
         epochs,
         batch_size,
         gamma,
-        beta1=0.9,
-        beta2=0.999,
         use_decaying_step_length=False,
         t0=1.0,
         t1=100.0,
@@ -228,7 +226,6 @@ def train_sgd_RMSprop(
         epochs,
         batch_size,
         gamma,
-        beta1=0.9,
         beta2=0.999,
         use_decaying_step_length=False,
         t0=1.0,
@@ -263,15 +260,11 @@ def train_sgd_RMSprop(
                 r_W = beta2 * r_W + (1 - beta2) * (dC_dW ** 2)
                 r_b = beta2 * r_b + (1 - beta2) * (dC_db ** 2)
 
-                # Compute bias-corrected second raw moment estimate
-                r_W_hat = r_W / (1 - beta2 ** (epoch + 1))
-                r_b_hat = r_b / (1 - beta2 ** (epoch + 1))
-
                 # Update parameters
                 gamma_t = step_length(epoch + 1, t0, t1) if use_decaying_step_length else gamma
                 layers[i] = (
-                    layers[i][0] - gamma_t * dC_dW / (np.sqrt(r_W_hat) + 1e-8),
-                    layers[i][1] - gamma_t * dC_db / (np.sqrt(r_b_hat) + 1e-8)
+                    layers[i][0] - gamma_t * dC_dW / (np.sqrt(r_W) + 1e-8),
+                    layers[i][1] - gamma_t * dC_db / (np.sqrt(r_b) + 1e-8)
                 )
 
                 # Store updated momentums and second moments
