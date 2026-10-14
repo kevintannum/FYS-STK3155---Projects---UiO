@@ -213,6 +213,7 @@ def train_sgd_plain(
                     layers[i][0] - gamma_t * dC_dW,
                     layers[i][1] - gamma_t * dC_db
                 )
+    
     return layers
 
 
