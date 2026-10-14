@@ -9,7 +9,7 @@ def mse(predict, target):
 
 def cost(layers, input, activation_funcs, target):
     predict = feed_forward(input, layers, activation_funcs)
-    return predict
+    return mse(predict, target)
 
 def ReLU(z):
     return jnp.where(z > 0, z, 0.0)
