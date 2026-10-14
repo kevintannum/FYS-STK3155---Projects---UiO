@@ -1,5 +1,8 @@
-import jax.numpy as jnp
 import numpy as np
+import matplotlib.pyplot as plt
+import jax
+import jax.numpy as jnp  
+from sklearn.model_selection import train_test_split
 
 def mse(predict, target):
     return jnp.mean((predict - target) ** 2)
