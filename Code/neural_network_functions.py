@@ -16,8 +16,12 @@ def sigmoid(z):
 def sigmoid_der(z):
     return jnp.exp(-z)/((1+jnp.exp(-z))**2)
 
-def mse(predictions, targets):
-    return np.mean((predictions - targets)**2)
+def mse(predict, target):
+    return jnp.mean((predict - target) ** 2)
+
+def cost(layers, input, activation_funcs, target):
+    predict = feed_forward(input, layers, activation_funcs)
+    return mse(predict, target)
 
 def mse_der(predict, target):
     return 2*(predict - target)/predict.size
