@@ -1,3 +1,12 @@
+import jax.numpy as jnp
+import numpy as np
+
+def mse(predict, target):
+    return jnp.mean((predict - target) ** 2)
+
+def cost(layers, input, activation_funcs, target):
+    predict = feed_forward(input, layers, activation_funcs)
+
 def ReLU(z):
     return jnp.where(z > 0, z, 0.0)
 
@@ -16,12 +25,8 @@ def sigmoid(z):
 def sigmoid_der(z):
     return jnp.exp(-z)/((1+jnp.exp(-z))**2)
 
-def mse(predict, target):
-    return jnp.mean((predict - target) ** 2)
-
-def cost(layers, input, activation_funcs, target):
-    predict = feed_forward(input, layers, activation_funcs)
-    return mse(predict, target)
+def mse(predictions, targets):
+    return np.mean((predictions - targets)**2)
 
 def mse_der(predict, target):
     return 2*(predict - target)/predict.size
@@ -93,6 +98,77 @@ def step_length(t, t0, t1):
 
 
 def train_sgd_adam(
+        Xtrain,
+        Ytrain,
+        layers,
+        activation_funcs,
+        activation_ders,
+        epochs,
+        batch_size,
+        gamma,
+        beta1=0.9,
+        beta2=0.999,
+        use_decaying_step_length=False,
+        t0=1.0,
+        t1=100.0,
+        cost_der=mse_der
+):
+
+    """LLM assisted (Copilot)"""
+    momentums = [(np.zeros_like(W), np.zeros_like(b)) for (W, b) in layers]
+    rs = [(np.zeros_like(W), np.zeros_like(b)) for (W, b) in layers]
+    n_samples = Xtrain.shape[0]
+
+    for epoch in range(epochs):
+        # Shuffle the data at the beginning of each epoch
+        indices = np.arange(n_samples)
+        np.random.shuffle(indices)
+        Xtrain = Xtrain[indices]
+        Ytrain = Ytrain[indices]
+
+        for start in range(0, n_samples, batch_size):
+            end = min(start + batch_size, n_samples)
+            Xbatch = Xtrain[start:end]
+            Ybatch = Ytrain[start:end]
+
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der)
+
+            for i in range(len(layers)):
+                dC_dW, dC_db = layer_grads[i]
+                m_W, m_b = momentums[i]
+                r_W, r_b = rs[i]
+
+                # Update biased first moment estimate
+                m_W = beta1 * m_W + (1 - beta1) * dC_dW
+                m_b = beta1 * m_b + (1 - beta1) * dC_db
+
+                # Update biased second raw moment estimate
+                r_W = beta2 * r_W + (1 - beta2) * (dC_dW ** 2)
+                r_b = beta2 * r_b + (1 - beta2) * (dC_db ** 2)
+
+                # Compute bias-corrected first moment estimate
+                m_W_hat = m_W / (1 - beta1 ** (epoch + 1))
+                m_b_hat = m_b / (1 - beta1 ** (epoch + 1))
+
+                # Compute bias-corrected second raw moment estimate
+                r_W_hat = r_W / (1 - beta2 ** (epoch + 1))
+                r_b_hat = r_b / (1 - beta2 ** (epoch + 1))
+
+                # Update parameters
+                gamma_t = step_length(epoch + 1, t0, t1) if use_decaying_step_length else gamma
+                layers[i] = (
+                    layers[i][0] - gamma_t * m_W_hat / (np.sqrt(r_W_hat) + 1e-8),
+                    layers[i][1] - gamma_t * m_b_hat / (np.sqrt(r_b_hat) + 1e-8)
+                )
+
+                # Store updated momentums and second moments
+                momentums[i] = (m_W, m_b)
+                rs[i] = (r_W, r_b)
+    return layers
+
+
+
+def train_sgd_plain(
         Xtrain,
         Ytrain,
         layers,
