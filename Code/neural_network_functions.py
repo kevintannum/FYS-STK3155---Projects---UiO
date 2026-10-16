@@ -7,21 +7,6 @@ from sklearn.model_selection import train_test_split
 def mse(predict, target):
     return jnp.mean((predict - target) ** 2)
 
-def Lasso(predict, target, layers, lbd):
-    mse = jnp.mean((predict - target) ** 2)
-    layer_sum = 0
-    for layer in range(len(layers)):
-        layer_sum+=lbd*(np.sum(layer[0])+np.sum(layer[1]))
-    return mse + layer_sum
-
-def Ridge(predict, target, layers, lbd):
-    mse = jnp.mean((predict - target) ** 2)
-    layer_sum = 0
-    for layer in range(len(layers)):
-        layer_sum += lbd*(np.sum(layer[0]**2)+np.sum(layer[1]**2))
-    return mse + layer_sum
-
-
 def mse_der(predict, target):
     return 2*(predict - target)/predict.size
 
@@ -50,16 +35,44 @@ def sigmoid_der(z):
 def mse_der(predict, target):
     return 2*(predict - target)/predict.size
 
-def create_layers(network_input_size, layer_output_sizes):
+#LeCun initialization
+def create_layers(
+    network_input_size,
+    layer_output_sizes,
+    method="LeCun",
+):
     layers = []
+    input_size = network_input_size
 
-    i_size = network_input_size
-    for layer_output_size in layer_output_sizes:
-        W = np.random.randn(i_size, layer_output_size)
-        b = np.random.randn(layer_output_size)
+    for output_size in layer_output_sizes:
+        method_lower = method.lower()
+
+        if method_lower == "lecun":
+            # Standard deviation: 1 / sqrt(n_inputs)
+            scale = np.sqrt(1.0 / input_size)
+
+        elif method_lower == "xavier":
+            # Xavier/Glorot normal initialization
+            # Standard deviation: sqrt(2 / (n_inputs + n_outputs))
+            scale = np.sqrt(2.0 / (input_size + output_size))
+
+        elif method_lower == "he":
+            # He normal initialization
+            # Standard deviation: sqrt(2 / n_inputs)
+            scale = np.sqrt(2.0 / input_size)
+
+        else:
+            raise ValueError(
+                "Invalid initialization method. "
+                "Choose 'LeCun', 'Xavier', or 'He'."
+            )
+
+        W = np.random.randn(input_size, output_size) * scale
+        b = np.zeros(output_size)
+
         layers.append((W, b))
+        input_size = output_size
 
-        i_size = layer_output_size
     return layers
 
 
@@ -302,6 +315,7 @@ def train_sgd_RMSprop(
     return layers
 
 
+# AI assisted (Copilot) 
 def classification_accuracy(layers, X, y, activation_funcs):
     outputs = feed_forward(
         X,
@@ -309,12 +323,23 @@ def classification_accuracy(layers, X, y, activation_funcs):
         activation_funcs,
     )
 
-    predicted_labels = np.argmax(outputs, axis=1)
+    outputs = np.asarray(outputs)
+    y = np.asarray(y)
 
-    # Convert one-hot targets to integer labels if necessary
-    if y.ndim == 2:
+    # Convert network outputs to predicted class labels
+    if outputs.ndim == 2 and outputs.shape[1] > 1:
+        # Multiclass output, for example shape (n_samples, 10)
+        predicted_labels = np.argmax(outputs, axis=1)
+    else:
+        # Binary output, for example shape (n_samples,) or (n_samples, 1)
+        predicted_labels = (outputs.ravel() >= 0.5).astype(int)
+
+    # Convert targets to one integer label per sample
+    if y.ndim == 2 and y.shape[1] > 1:
+        # One-hot targets, for example shape (n_samples, 10)
         true_labels = np.argmax(y, axis=1)
     else:
-        true_labels = y
+        # Integer labels shaped (n_samples,) or (n_samples, 1)
+        true_labels = y.ravel().astype(int)
 
     return np.mean(predicted_labels == true_labels)
