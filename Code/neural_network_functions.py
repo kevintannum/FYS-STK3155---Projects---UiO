@@ -7,6 +7,21 @@ from sklearn.model_selection import train_test_split
 def mse(predict, target):
     return jnp.mean((predict - target) ** 2)
 
+def Lasso(predict, target, layers, lbd):
+    mse = jnp.mean((predict - target) ** 2)
+    layer_sum = 0
+    for layer in range(len(layers)):
+        layer_sum+=lbd*(np.sum(layer[0])+np.sum(layer[1]))
+    return mse + layer_sum
+
+def Ridge(predict, target, layers, lbd):
+    mse = jnp.mean((predict - target) ** 2)
+    layer_sum = 0
+    for layer in range(len(layers)):
+        layer_sum += lbd*(np.sum(layer[0]**2)+np.sum(layer[1]**2))
+    return mse + layer_sum
+
+
 def mse_der(predict, target):
     return 2*(predict - target)/predict.size
 
