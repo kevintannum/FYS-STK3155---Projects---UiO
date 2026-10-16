@@ -32,6 +32,9 @@ def sigmoid(z):
 def sigmoid_der(z):
     return jnp.exp(-z)/((1+jnp.exp(-z))**2)
 
+def mse_der(predict, target):
+    return 2*(predict - target)/predict.size
+
 def create_layers(network_input_size, layer_output_sizes):
     layers = []
 
@@ -269,3 +272,21 @@ def train_sgd_RMSprop(
 
                 rs[i] = (r_W, r_b)
     return layers
+
+
+def classification_accuracy(layers, X, y, activation_funcs):
+    outputs = feed_forward(
+        X,
+        layers,
+        activation_funcs,
+    )
+
+    predicted_labels = np.argmax(outputs, axis=1)
+
+    # Convert one-hot targets to integer labels if necessary
+    if y.ndim == 2:
+        true_labels = np.argmax(y, axis=1)
+    else:
+        true_labels = y
+
+    return np.mean(predicted_labels == true_labels)
