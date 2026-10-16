@@ -137,7 +137,9 @@ def train_sgd_adam(
         use_decaying_step_length=False,
         t0=1.0,
         t1=100.0,
-        cost_der=mse_der
+        cost_der=mse_der,
+        method = "plain",
+        lbd = 0
 ):
 
     """LLM assisted (Copilot)"""
@@ -157,7 +159,7 @@ def train_sgd_adam(
             Xbatch = Xtrain[start:end]
             Ybatch = Ytrain[start:end]
 
-            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der)
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der, method = method, lbd = lbd)
 
             for i in range(len(layers)):
                 dC_dW, dC_db = layer_grads[i]
@@ -206,7 +208,9 @@ def train_sgd_plain(
         use_decaying_step_length=False,
         t0=1.0,
         t1=100.0,
-        cost_der=mse_der
+        cost_der=mse_der,
+        method = "plain",
+        lbd = 0
 ):
 
     """LLM assisted (Copilot)"""
@@ -224,7 +228,7 @@ def train_sgd_plain(
             Xbatch = Xtrain[start:end]
             Ybatch = Ytrain[start:end]
 
-            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der)
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der, method = method, lbd = lbd)
 
             for i in range(len(layers)):
                 dC_dW, dC_db = layer_grads[i]
@@ -253,7 +257,9 @@ def train_sgd_RMSprop(
         use_decaying_step_length=False,
         t0=1.0,
         t1=100.0,
-        cost_der=mse_der
+        cost_der=mse_der,
+        method = "plain",
+        lbd = 0
 ):
 
     """LLM assisted (Copilot)"""
@@ -273,7 +279,7 @@ def train_sgd_RMSprop(
             Xbatch = Xtrain[start:end]
             Ybatch = Ytrain[start:end]
 
-            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der)
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der, method = method, lbd = lbd)
 
             for i in range(len(layers)):
                 dC_dW, dC_db = layer_grads[i]
