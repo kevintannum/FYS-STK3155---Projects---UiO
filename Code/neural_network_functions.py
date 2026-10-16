@@ -7,6 +7,9 @@ from sklearn.model_selection import train_test_split
 def mse(predict, target):
     return jnp.mean((predict - target) ** 2)
 
+def mse_der(predict, target):
+    return 2*(predict - target)/predict.size
+
 def cost(layers, input, activation_funcs, target):
     predict = feed_forward(input, layers, activation_funcs)
     return mse(predict, target)
