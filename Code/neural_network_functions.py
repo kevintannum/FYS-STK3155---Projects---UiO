@@ -84,7 +84,7 @@ def feed_forward_saver(input, layers, activation_funcs):
     return layer_inputs, zs, a
 
 def backpropagation(
-    input, layers, activation_funcs, target, activation_ders, cost_der=mse_der
+    input, layers, activation_funcs, target, activation_ders, cost_der=mse_der, method = "plain", lbd = 0
 ):
     layer_inputs, zs, predict = feed_forward_saver(input, layers, activation_funcs)
 
@@ -96,7 +96,7 @@ def backpropagation(
 
         if i == len(layers) - 1:
             # For last layer we use cost derivative as dC_da(L) can be computed directly
-            dC_da = mse_der(predict, target)
+            dC_da = mse_der(predict, target)             
         else:
             # For other layers we build on previous z derivative, as dC_da(i) = dC_dz(i+1) * dz(i+1)_da(i)
             (W, b) = layers[i + 1]
@@ -105,6 +105,13 @@ def backpropagation(
         dC_dz = dC_da*activation_der(z)
         dC_dW = layer_input.T @ dC_dz
         dC_db = np.sum(dC_dz, axis = 0)
+
+        lbd_W, _ = layers[i] #<- ChatGPT hjalp med å legge til denne
+
+        if method == "Lasso":
+            dC_dW += lbd*np.sign(lbd_W)
+        elif method == "Ridge":
+            dC_dW += 2*lbd*lbd_W 
 
         layer_grads[i] = (dC_dW, dC_db)
 
