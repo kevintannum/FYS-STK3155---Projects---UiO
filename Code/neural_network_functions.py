@@ -109,7 +109,7 @@ def backpropagation(
 
         if i == len(layers) - 1:
             # For last layer we use cost derivative as dC_da(L) can be computed directly
-            dC_da = mse_der(predict, target)             
+            dC_da = cost_der(predict, target) #<- ChatGPT fikset koden her.             
         else:
             # For other layers we build on previous z derivative, as dC_da(i) = dC_dz(i+1) * dz(i+1)_da(i)
             (W, b) = layers[i + 1]
@@ -160,6 +160,8 @@ def train_sgd_adam(
     rs = [(np.zeros_like(W), np.zeros_like(b)) for (W, b) in layers]
     n_samples = Xtrain.shape[0]
 
+    t = 0 #<- Chatgpt fikste hvorand adam teller tidsteg.
+
     for epoch in range(epochs):
         # Shuffle the data at the beginning of each epoch
         indices = np.arange(n_samples)
@@ -188,15 +190,15 @@ def train_sgd_adam(
                 r_b = beta2 * r_b + (1 - beta2) * (dC_db ** 2)
 
                 # Compute bias-corrected first moment estimate
-                m_W_hat = m_W / (1 - beta1 ** (epoch + 1))
-                m_b_hat = m_b / (1 - beta1 ** (epoch + 1))
+                m_W_hat = m_W / (1 - beta1 ** (t + 1))
+                m_b_hat = m_b / (1 - beta1 ** (t + 1))
 
                 # Compute bias-corrected second raw moment estimate
-                r_W_hat = r_W / (1 - beta2 ** (epoch + 1))
-                r_b_hat = r_b / (1 - beta2 ** (epoch + 1))
+                r_W_hat = r_W / (1 - beta2 ** (t + 1))
+                r_b_hat = r_b / (1 - beta2 ** (t + 1))
 
                 # Update parameters
-                gamma_t = step_length(epoch + 1, t0, t1) if use_decaying_step_length else gamma
+                gamma_t = step_length(t + 1, t0, t1) if use_decaying_step_length else gamma
                 layers[i] = (
                     layers[i][0] - gamma_t * m_W_hat / (np.sqrt(r_W_hat) + 1e-8),
                     layers[i][1] - gamma_t * m_b_hat / (np.sqrt(r_b_hat) + 1e-8)
@@ -205,6 +207,8 @@ def train_sgd_adam(
                 # Store updated momentums and second moments
                 momentums[i] = (m_W, m_b)
                 rs[i] = (r_W, r_b)
+            t+=1
+            
     return layers
 
 
