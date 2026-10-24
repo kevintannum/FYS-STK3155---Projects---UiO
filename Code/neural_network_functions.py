@@ -110,48 +110,37 @@ def feed_forward_saver(input, layers, activation_funcs):
 
 #Backpropagation allowing softmax
 def backpropagation(
-    input,
-    layers,
-    activation_funcs,
-    target,
-    activation_ders,
-    cost_der=mse_der,
+    input, layers, activation_funcs, target, activation_ders, cost_der=mse_der, method = "plain", lbd = 0
 ):
-    layer_inputs, zs, predict = feed_forward_saver(
-        input,
-        layers,
-        activation_funcs,
-    )
+    layer_inputs, zs, predict = feed_forward_saver(input, layers, activation_funcs)
 
-    layer_grads = [() for _ in layers]
+    layer_grads = [() for layer in layers]
 
-    # Loop from the output layer to the first hidden layer
+    # We loop over the layers, from the last to the first
     for i in reversed(range(len(layers))):
-        layer_input = layer_inputs[i]
-        z = zs[i]
-        activation_der = activation_ders[i]
+        layer_input, z, activation_der = layer_inputs[i], zs[i], activation_ders[i]
 
         if i == len(layers) - 1:
-            if cost_der is cross_entropy_der:
-                # Combined softmax + cross-entropy derivative:
-                # dC/dz = (prediction - target) / batch size
-                dC_dz = cost_der(predict, target)
-
-            else:
-                # General case, such as sigmoid + MSE
-                dC_da = cost_der(predict, target)
-                dC_dz = dC_da * activation_der(z)
-
+            # For last layer we use cost derivative as dC_da(L) can be computed directly
+            dC_da = cost_der(predict, target) #<- ChatGPT fikset koden her.             
         else:
-            # Propagate gradient backward from the next layer
-            W_next, _ = layers[i + 1]
+            # For other layers we build on previous z derivative, as dC_da(i) = dC_dz(i+1) * dz(i+1)_da(i)
+            (W, b) = layers[i + 1]
+            dC_da = dC_dz@W.T
 
-            dC_da = dC_dz @ W_next.T
-            dC_dz = dC_da * activation_der(z)
-
+        dC_dz = dC_da*activation_der(z)
         dC_dW = layer_input.T @ dC_dz
-        dC_db = np.sum(dC_dz, axis=0)
+        dC_db = np.sum(dC_dz, axis = 0)
+
+        lbd_W, _ = layers[i] #<- ChatGPT hjalp med å legge til denne
+
+        if method == "Lasso":
+            dC_dW += lbd*np.sign(lbd_W)
+        elif method == "Ridge":
+            dC_dW += 2*lbd*lbd_W 
+
         layer_grads[i] = (dC_dW, dC_db)
+
     return layer_grads
 
 def step_length(t, t0, t1):
@@ -159,107 +148,80 @@ def step_length(t, t0, t1):
     return t0/(t+t1)
 
 
-#Debugged with AI: 
-def train_sgd_adam(
-    Xtrain,
-    Ytrain,
-    layers,
-    activation_funcs,
-    activation_ders,
-    epochs,
-    batch_size,
-    gamma,
-    beta1=0.9,
-    beta2=0.999,
-    use_decaying_step_length=False,
-    t0=1.0,
-    t1=100.0,
-    cost_der=mse_der,
-):
-    momentums = [
-        (
-            np.zeros_like(W),
-            np.zeros_like(b),
-        )
-        for W, b in layers
-    ]
 
-    rs = [
-        (
-            np.zeros_like(W),
-            np.zeros_like(b),
-        )
-        for W, b in layers
-    ]
+def train_sgd_adam(
+        Xtrain,
+        Ytrain,
+        layers,
+        activation_funcs,
+        activation_ders,
+        epochs,
+        batch_size,
+        gamma,
+        beta1=0.9,
+        beta2=0.999,
+        use_decaying_step_length=False,
+        t0=1.0,
+        t1=100.0,
+        cost_der=mse_der,
+        method = "plain",
+        lbd = 0
+):
+
+    """LLM assisted (Copilot)"""
+    momentums = [(np.zeros_like(W), np.zeros_like(b)) for (W, b) in layers]
+    rs = [(np.zeros_like(W), np.zeros_like(b)) for (W, b) in layers]
     n_samples = Xtrain.shape[0]
-    update_step = 0
+
+    t = 0 #<- Chatgpt fikste hvorand adam teller tidsteg.
 
     for epoch in range(epochs):
+        # Shuffle the data at the beginning of each epoch
         indices = np.arange(n_samples)
         np.random.shuffle(indices)
-
         Xtrain = Xtrain[indices]
         Ytrain = Ytrain[indices]
+
         for start in range(0, n_samples, batch_size):
-            update_step += 1
-
             end = min(start + batch_size, n_samples)
-
             Xbatch = Xtrain[start:end]
             Ybatch = Ytrain[start:end]
 
-            layer_grads = backpropagation(
-                input=Xbatch,
-                layers=layers,
-                activation_funcs=activation_funcs,
-                target=Ybatch,
-                activation_ders=activation_ders,
-                cost_der=cost_der,
-            )
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der, method = method, lbd = lbd)
+
             for i in range(len(layers)):
                 dC_dW, dC_db = layer_grads[i]
-
                 m_W, m_b = momentums[i]
                 r_W, r_b = rs[i]
 
-                # First moment
+                # Update biased first moment estimate
                 m_W = beta1 * m_W + (1 - beta1) * dC_dW
                 m_b = beta1 * m_b + (1 - beta1) * dC_db
 
-                # Second raw moment
-                r_W = beta2 * r_W + (1 - beta2) * dC_dW**2
-                r_b = beta2 * r_b + (1 - beta2) * dC_db**2
+                # Update biased second raw moment estimate
+                r_W = beta2 * r_W + (1 - beta2) * (dC_dW ** 2)
+                r_b = beta2 * r_b + (1 - beta2) * (dC_db ** 2)
 
-                # Correct using the number of updates, not epochs
-                m_W_hat = m_W / (1 - beta1**update_step)
-                m_b_hat = m_b / (1 - beta1**update_step)
+                # Compute bias-corrected first moment estimate
+                m_W_hat = m_W / (1 - beta1 ** (t + 1))
+                m_b_hat = m_b / (1 - beta1 ** (t + 1))
 
-                r_W_hat = r_W / (1 - beta2**update_step)
-                r_b_hat = r_b / (1 - beta2**update_step)
+                # Compute bias-corrected second raw moment estimate
+                r_W_hat = r_W / (1 - beta2 ** (t + 1))
+                r_b_hat = r_b / (1 - beta2 ** (t + 1))
 
-                if use_decaying_step_length:
-                    gamma_t = step_length(
-                        update_step,
-                        t0,
-                        t1,
-                    )
-                else:
-                    gamma_t = gamma
-
+                # Update parameters
+                gamma_t = step_length(t + 1, t0, t1) if use_decaying_step_length else gamma
                 layers[i] = (
-                    layers[i][0]
-                    - gamma_t
-                    * m_W_hat
-                    / (np.sqrt(r_W_hat) + 1e-8),
-
-                    layers[i][1]
-                    - gamma_t
-                    * m_b_hat
-                    / (np.sqrt(r_b_hat) + 1e-8),
+                    layers[i][0] - gamma_t * m_W_hat / (np.sqrt(r_W_hat) + 1e-8),
+                    layers[i][1] - gamma_t * m_b_hat / (np.sqrt(r_b_hat) + 1e-8)
                 )
 
+                # Store updated momentums and second moments
                 momentums[i] = (m_W, m_b)
                 rs[i] = (r_W, r_b)
+            t+=1
+            
     return layers
 
 
@@ -276,7 +238,9 @@ def train_sgd_plain(
         use_decaying_step_length=False,
         t0=1.0,
         t1=100.0,
-        cost_der=mse_der
+        cost_der=mse_der,
+        method = "plain",
+        lbd = 0
 ):
 
     """LLM assisted (Copilot)"""
@@ -294,7 +258,7 @@ def train_sgd_plain(
             Xbatch = Xtrain[start:end]
             Ybatch = Ytrain[start:end]
 
-            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der)
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der, method = method, lbd = lbd)
 
             for i in range(len(layers)):
                 dC_dW, dC_db = layer_grads[i]
@@ -323,7 +287,9 @@ def train_sgd_RMSprop(
         use_decaying_step_length=False,
         t0=1.0,
         t1=100.0,
-        cost_der=mse_der
+        cost_der=mse_der,
+        method = "plain",
+        lbd = 0
 ):
 
     """LLM assisted (Copilot)"""
@@ -343,7 +309,7 @@ def train_sgd_RMSprop(
             Xbatch = Xtrain[start:end]
             Ybatch = Ytrain[start:end]
 
-            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der)
+            layer_grads = backpropagation(Xbatch, layers, activation_funcs, Ybatch, activation_ders, cost_der = cost_der, method = method, lbd = lbd)
 
             for i in range(len(layers)):
                 dC_dW, dC_db = layer_grads[i]
