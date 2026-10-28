@@ -2,7 +2,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp  
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import KFold
+from sklearn.base import clone
+from sklearn.metrics import mean_squared_error
+
+
 
 def mse(predict, target):
     return jnp.mean((predict - target) ** 2)
@@ -360,3 +368,60 @@ def classification_accuracy(layers, X, y, activation_funcs):
         true_labels = y.ravel().astype(int)
 
     return np.mean(predicted_labels == true_labels)
+
+
+class NeuralNetRegressor(BaseEstimator, RegressorMixin):
+    """Your Project 2 network with the scikit-learn estimator interface."""
+
+    def __init__(self, input = 1,hidden_layers = [50,1], activation=sigmoid, activation_der=sigmoid_der, gamma=0.03, lmbd=0.0, epochs=1000, batch_size=10, seed=2026, use_decaying_step_length=False, t0=1.0, t1=100.0, method="plain"):
+        """LLM assisted (Copilot)"""
+        # store the hyperparameters under the same names; no computation here
+        self.input = input
+        self.hidden_layers = hidden_layers
+        self.activation = activation
+        self.activation_der = activation_der
+        self.gamma = gamma
+        self.lmbd = lmbd
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.seed = seed
+        self.use_decaying_step_length = use_decaying_step_length
+        self.t0 = t0
+        self.t1 = t1
+        self.method = method
+
+
+    def fit(self, X, y):
+        """LLM assisted (Copilot)"""
+        # X has shape (n, 1), y shape (n,): build the layers from self.seed,
+        # train with your SGD for self.epochs epochs, store the layers in self.layers_
+        self.n_features_in_ = X.shape[1]
+        y = np.asarray(y).reshape(-1, 1)
+
+        np.random.seed(self.seed)#<- UiOGPT added this line to ensure reproducibility of the random initialization of the layers.
+        self.layers_ = create_layers(
+            self.n_features_in_,
+            self.hidden_layers
+        )
+        self.layers_= train_sgd_adam(
+        X,
+        y, 
+        self.layers_,
+        [self.activation]*(len(self.hidden_layers)-1) + [lambda z: z],
+        [self.activation_der]*(len(self.hidden_layers)-1) + [lambda z: np.ones_like(z)], 
+        self.epochs, 
+        self.batch_size, 
+        self.gamma, 
+        lbd=self.lmbd,
+        use_decaying_step_length=self.use_decaying_step_length,
+        t0=self.t0,
+        t1=self.t1,
+        method=self.method)
+        
+                                      
+        return self
+
+    def predict(self, X):
+        """LLM assisted (Copilot)"""
+        # the network output as a 1D array of length len(X)
+        return feed_forward(X, self.layers_, [self.activation]*(len(self.hidden_layers)-1) + [lambda z: z]).ravel()
