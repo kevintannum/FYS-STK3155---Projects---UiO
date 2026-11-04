@@ -425,3 +425,115 @@ class NeuralNetRegressor(BaseEstimator, RegressorMixin):
         """LLM assisted (Copilot)"""
         # the network output as a 1D array of length len(X)
         return feed_forward(X, self.layers_, [self.activation]*(len(self.hidden_layers)-1) + [lambda z: z]).ravel()
+
+
+    ##Copilot -> Build a NeuralNetworkClassifier object which works with my experiment 5:
+from sklearn.base import ClassifierMixin
+
+class NeuralNetClassifier(ClassifierMixin, BaseEstimator):
+    def __init__(
+        self,
+        hidden=(400,),
+        activation="leaky_relu",
+        epochs=20,
+        batch_size=128,
+        gamma=0.001,
+        lbd=0.0,
+        seed=2026,
+    ):
+        self.hidden = hidden
+        self.activation = activation
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.gamma = gamma
+        self.lbd = lbd
+        self.seed = seed
+
+    def _set_activation_functions(self):
+        if self.activation == "leaky_relu":
+            activation_func = leaky_ReLU
+            activation_der = leaky_ReLU_der
+        elif self.activation == "relu":
+            activation_func = ReLU
+            activation_der = ReLU_der
+        elif self.activation == "sigmoid":
+            activation_func = sigmoid
+            activation_der = sigmoid_der
+        else:
+            raise ValueError(
+                f"Unknown activation function: {self.activation}"
+            )
+
+        def output_derivative(z):
+            return np.ones_like(z)
+
+        self.activation_funcs_ = (
+            [activation_func] * len(self.hidden)
+            + [softmax]
+        )
+
+        self.activation_ders_ = (
+            [activation_der] * len(self.hidden)
+            + [output_derivative]
+        )
+
+    def fit(self, X, y):
+        X = np.ascontiguousarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=int)
+
+        self.classes_ = np.unique(y)
+        self.n_features_in_ = X.shape[1]
+
+        if not np.array_equal(self.classes_, np.arange(10)):
+            raise ValueError(
+                "This wrapper expects all MNIST classes 0 through 9 "
+                "to be present in each training fold."
+            )
+
+        Y = np.eye(10, dtype=np.float32)[y]
+
+        self._set_activation_functions()
+
+        np.random.seed(self.seed)
+
+        network_sizes = list(self.hidden) + [10]
+
+        self.layers_ = create_layers(
+            self.n_features_in_,
+            network_sizes,
+            method="He",
+        )
+
+        np.random.seed(self.seed)
+
+        self.layers_ = train_sgd_RMSprop(
+            Xtrain=X,
+            Ytrain=Y,
+            layers=self.layers_,
+            activation_funcs=self.activation_funcs_,
+            activation_ders=self.activation_ders_,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            gamma=self.gamma,
+            beta2=0.999,
+            use_decaying_step_length=False,
+            cost_der=cross_entropy_der,
+            method="Ridge",
+            lbd=self.lbd,
+        )
+
+        return self
+
+    def predict_proba(self, X):
+        X = np.ascontiguousarray(X, dtype=np.float32)
+
+        probabilities = feed_forward(
+            X,
+            self.layers_,
+            self.activation_funcs_,
+        )
+
+        return np.asarray(probabilities)
+
+    def predict(self, X):
+        return np.argmax(self.predict_proba(X), axis=1)

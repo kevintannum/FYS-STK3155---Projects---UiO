@@ -1,15 +1,16 @@
-Her er readme
+Reproducing the experiments
 
-To contributors: 
+Install uv.
 
-push onto main branch: 
->>  git commit -m "message of what you have done"
->>  git push
+Create the environment:
 
-update latest changes: 
+uv sync
 
->> git pull origin main 
+Run the experiments:
 
-Install this: 
->> pip install import-ipynb
+    MNIST EXPERIMENT:
+>> uv run jupyter classification_model_mnist.ipynb
+
+    RUNGE EXPERIMENT:
+>> uv run jupyter regression_runges.ipynb
 
